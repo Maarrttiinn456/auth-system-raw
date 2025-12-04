@@ -1,25 +1,71 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { Controller, useForm } from 'react-hook-form';
 import useLoginMutation from '../../queries/auth/useLoginMutation';
 import useRegisterMutation from '../../queries/auth/useRegisterMutation';
 import type { LoginUser, RegisterUser } from '../../types/auth';
 import Toast from '../Toast';
 import { createPortal } from 'react-dom';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+/*Chakra*/
+import { Button, Box, Heading } from '@chakra-ui/react';
 
 type AuthFormProps = {
     mode: 'login' | 'register';
 };
 
+type LoginForm = {
+    email: string;
+    password: string;
+};
+type RegistrationForm = LoginForm & {
+    username: string;
+};
+
+// --- Shared validators ---
+const emailSchema = z
+    .string()
+    .min(1, 'Email je povinný')
+    .email('Email není ve správném formátu');
+
+const passwordSchema = z
+    .string()
+    .min(10, 'Heslo musí mít alespoň 10 znaků')
+    .regex(/[A-Z]/, 'Heslo musí obsahovat alespoň jedno velké písmeno')
+    .regex(/[^A-Za-z0-9]/, 'Heslo musí obsahovat alespoň jeden speciální znak');
+
+// --- Login schema ---
+const loginValidationSchema = z.object({
+    email: emailSchema,
+    password: passwordSchema,
+});
+
+// --- Registration schema ---
+const registrationValidationSchema = z.object({
+    username: z.string().min(5, 'Alepoň 5 znaků'),
+    email: emailSchema,
+    password: passwordSchema,
+});
+
 const AuthForm = ({ mode }: AuthFormProps) => {
-    const [username, setUsername] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const { control, handleSubmit } = useForm<LoginForm | RegistrationForm>({
+        resolver: zodResolver(
+            mode === 'login'
+                ? loginValidationSchema
+                : registrationValidationSchema
+        ),
+        defaultValues:
+            mode === 'login'
+                ? { email: '', password: '' }
+                : { username: '', email: '', password: '' },
+    });
 
     const {
         mutate: loginMutation,
         isPending: isLoginPending,
         isError: isLoginError,
-        error: errorLogin,
     } = useLoginMutation();
     const {
         mutate: registerMutation,
@@ -29,12 +75,17 @@ const AuthForm = ({ mode }: AuthFormProps) => {
 
     const navigate = useNavigate();
 
+    /*
     const handleForm = (e: FormEvent) => {
         e.preventDefault();
 
         if (mode === 'login') {
             if (!email || !password) {
                 return alert('Vyplňte prosím všechna pole');
+            }
+
+            if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+                setError('Není email');
             }
 
             const loginUserData: LoginUser = {
@@ -64,8 +115,11 @@ const AuthForm = ({ mode }: AuthFormProps) => {
             });
         }
     };
+    */
 
-    /**/
+    const onSubmit = (formValues: LoginForm | RegistrationForm) => {
+        console.log('formValues:', formValues);
+    };
 
     return (
         <>
@@ -86,52 +140,88 @@ const AuthForm = ({ mode }: AuthFormProps) => {
                     document.getElementById('teleport')!
                 )}
 
-            <div className="bg-gray-900 px-10 py-8 rounded-xl">
-                <div className="mb-4 font-bold text-2xl uppercase text-center">
+            <Box padding={8} backgroundColor="red.700" alignItems="center">
+                <Heading textAlign="center">
                     {mode === 'login' ? 'Přihlásit se' : 'Registrovat se'}
-                </div>
+                </Heading>
                 <form
                     className="flex flex-col items-center gap-4 w-72"
-                    onSubmit={handleForm}
+                    //onSubmit={handleForm}
+                    onSubmit={handleSubmit(onSubmit, console.error)}
                 >
                     {mode === 'register' && (
-                        <label htmlFor="username" className="space-y-2  w-full">
-                            <div className="text-sm">Username:</div>
-                            <input
-                                type="text"
-                                id="username"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="border border-white px-2 py-1 rounded-md w-full"
-                            />
-                        </label>
+                        <Controller
+                            control={control}
+                            name="username"
+                            render={({ field, fieldState }) => {
+                                return (
+                                    <label
+                                        htmlFor="username"
+                                        className="space-y-2  w-full"
+                                    >
+                                        <div className="text-sm">Username:</div>
+                                        <input
+                                            {...field}
+                                            id="username"
+                                            className="border border-white px-2 py-1 rounded-md w-full"
+                                        />
+                                        {fieldState.error && (
+                                            <p> {fieldState.error.message} </p>
+                                        )}
+                                    </label>
+                                );
+                            }}
+                        ></Controller>
                     )}
 
-                    <label htmlFor="email" className="space-y-2  w-full">
-                        <div className="text-sm">Email:</div>
-                        <input
-                            type="text"
-                            id="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="border border-white px-2 py-1 rounded-md w-full"
-                        />
-                    </label>
-                    <label htmlFor="password" className="space-y-2  w-full">
-                        <div className="text-sm">Heslo:</div>
-                        <input
-                            type="password"
-                            id="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="border border-white px-2 py-1 rounded-md  w-full"
-                        />
-                    </label>
+                    <Controller
+                        control={control}
+                        name="email"
+                        render={({ field, fieldState }) => {
+                            return (
+                                <label
+                                    htmlFor="email"
+                                    className="space-y-2  w-full"
+                                >
+                                    <div className="text-sm">Email:</div>
+                                    <input
+                                        {...field}
+                                        type="text"
+                                        className="border border-white px-2 py-1 rounded-md w-full"
+                                    />
+                                    {fieldState.error && (
+                                        <p> {fieldState.error.message} </p>
+                                    )}
+                                </label>
+                            );
+                        }}
+                    />
+                    <Controller
+                        control={control}
+                        name="password"
+                        render={({ field, fieldState }) => {
+                            return (
+                                <label
+                                    htmlFor="password"
+                                    className="space-y-2  w-full"
+                                >
+                                    <div className="text-sm">Password:</div>
+                                    <input
+                                        {...field}
+                                        type="password"
+                                        className="border border-white px-2 py-1 rounded-md w-full"
+                                    />
+                                    {fieldState.error && (
+                                        <p> {fieldState.error.message} </p>
+                                    )}
+                                </label>
+                            );
+                        }}
+                    />
                     <div className="flex flex-col gap-y-4 justify-between w-full items-center">
-                        <button
+                        <Button
                             disabled={isLoginPending || isRegisterPending}
                             type="submit"
-                            className="bg-violet-700 px-6 w-fit text-md py-1.5 rounded-full mt-2 cursor-pointer transition hover:bg-violet-800"
                         >
                             {mode === 'login'
                                 ? isLoginPending
@@ -140,7 +230,7 @@ const AuthForm = ({ mode }: AuthFormProps) => {
                                 : isRegisterPending
                                 ? 'Registruji...'
                                 : 'Registrovat se'}
-                        </button>
+                        </Button>
                         {mode === 'login' ? (
                             <Link
                                 to="/register"
@@ -158,7 +248,7 @@ const AuthForm = ({ mode }: AuthFormProps) => {
                         )}
                     </div>
                 </form>
-            </div>
+            </Box>
         </>
     );
 };
